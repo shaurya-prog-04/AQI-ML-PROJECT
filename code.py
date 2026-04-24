@@ -156,3 +156,25 @@ print(f"\nBest number of features : {best_n}")
 print(f"Final selected features : {top_features}")
 
 X = X[top_features]
+
+#train-val-test-split
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+X_train_val, X_test, y_train_val, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+X_train, X_val, y_train, y_val = train_test_split(
+    X_train_val, y_train_val, test_size=0.25, random_state=42, stratify=y_train_val)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_val   = scaler.transform(X_val)
+X_test  = scaler.transform(X_test)
+
+print("Train size     :", X_train.shape)
+print("Validation size:", X_val.shape)
+print("Test size      :", X_test.shape)
+print("\nTrain label distribution:\n", y_train.value_counts())
+print("\nVal label distribution:\n",   y_val.value_counts())
+print("\nTest label distribution:\n",  y_test.value_counts())
