@@ -178,3 +178,90 @@ print("Test size      :", X_test.shape)
 print("\nTrain label distribution:\n", y_train.value_counts())
 print("\nVal label distribution:\n",   y_val.value_counts())
 print("\nTest label distribution:\n",  y_test.value_counts())
+
+#model training
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import VotingClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+classes = ['Good', 'Moderate', 'Poor', 'Satisfactory', 'Severe', 'Very Poor']
+
+lr  = LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42)
+knn = KNeighborsClassifier(n_neighbors=7, weights='distance')
+svm = SVC(kernel='rbf', probability=True, class_weight='balanced', random_state=42)
+
+lr.fit(X_train, y_train)
+knn.fit(X_train, y_train)
+svm.fit(X_train, y_train)
+
+lr_knn  = VotingClassifier(estimators=[('lr', lr), ('knn', knn)], voting='soft')
+lr_svm  = VotingClassifier(estimators=[('lr', lr), ('svm', svm)], voting='soft')
+knn_svm = VotingClassifier(estimators=[('knn', knn), ('svm', svm)], voting='soft')
+all3    = VotingClassifier(estimators=[('lr', lr), ('knn', knn), ('svm', svm)], voting='soft')
+
+lr_knn.fit(X_train, y_train)
+lr_svm.fit(X_train, y_train)
+knn_svm.fit(X_train, y_train)
+all3.fit(X_train, y_train)
+
+models = {
+    'Logistic Regression' : lr,
+    'KNN'                 : knn,
+    'SVM'                 : svm,
+    'LR + KNN'            : lr_knn,
+    'LR + SVM'            : lr_svm,
+    'KNN + SVM'           : knn_svm,
+    'LR + KNN + SVM'      : all3
+}
+
+results = {}
+for name, model in models.items():
+    val_preds = model.predict(X_val)
+    report    = classification_report(y_val, val_preds, target_names=classes, output_dict=True)
+    print(f"\n{'='*45}")
+    print(f"  {name}")
+    print(f"{'='*45}")
+    print(f"Train Accuracy     : {accuracy_score(y_train, model.predict(X_train)):.4f}")
+    print(f"Validation Accuracy: {accuracy_score(y_val, val_preds):.4f}")
+    print(classification_report(y_val, val_preds, target_names=classes))
+    results[name] = {
+        'Accuracy' : round(accuracy_score(y_val, val_preds), 4),
+        'Precision': round(report['weighted avg']['precision'], 4),
+        'Recall'   : round(report['weighted avg']['recall'], 4),
+        'F1 Score' : round(report['weighted avg']['f1-score'], 4)
+    }
+
+results_df = pd.DataFrame(results).T
+print("\nFULL VALIDATION COMPARISON TABLE")
+print(results_df)
+
+best_accuracy = results_df['Accuracy'].max()
+results_df['Diff from Best %'] = ((best_accuracy - results_df['Accuracy']) / best_accuracy * 100).round(2)
+
+print("\nACCURACY DIFFERENCE FROM BEST MODEL")
+print(results_df[['Accuracy', 'Diff from Best %']])
+
+results_df['Accuracy'].plot(kind='bar', color='steelblue')
+for i, (acc, diff) in enumerate(zip(results_df['Accuracy'], results_df['Diff from Best %'])):
+    plt.text(i, acc + 0.005, f'-{diff}%', ha='center', fontsize=8, color='red')
+
+plt.title('All Models — Accuracy Comparison with % Difference from Best')
+plt.ylabel('Accuracy')
+plt.ylim(0, 1)
+plt.xticks(rotation=30)
+plt.tight_layout()
+plt.savefig('plot8_validation_comparison.png')
+plt.show()
+
+best = results_df['Accuracy'].idxmax()
+print(f"\nBest model : {best}")
+print(results_df.loc[best])
+
+chosen_model_name = 'KNN'
+chosen_model      = models[chosen_model_name]
+
+print(f"\nChosen model for final evaluation: {chosen_model_name}")
+print(f"Accuracy difference from best: {results_df.loc[best, 'Accuracy'] - results_df.loc[chosen_model_name, 'Accuracy']:.4f}")
