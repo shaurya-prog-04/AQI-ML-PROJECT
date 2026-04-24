@@ -79,3 +79,80 @@ plt.show()
 
 df.to_csv('city_day_clean.csv', index=False)
 print("Saved: city_day_clean.csv")
+
+#feature selection
+from sklearn.feature_selection import SequentialFeatureSelector, mutual_info_classif
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import cross_val_score
+
+X = df.drop(columns=['AQI_Label'])
+y = df['AQI_Label']
+
+X = X.fillna(X.median())
+
+mi_scores = pd.Series(mutual_info_classif(X, y, random_state=42), index=X.columns)
+
+sns.heatmap(X.corr(), annot=True, fmt='.2f', cmap='coolwarm')
+plt.title('Feature Correlation Matrix')
+plt.tight_layout()
+plt.savefig('plot5_correlation.png')
+plt.show()
+
+corr = X.corr()
+to_drop = set()
+for i in range(len(corr.columns)):
+    for j in range(i):
+        if abs(corr.iloc[i, j]) > 0.9:
+            col_i = corr.columns[i]
+            col_j = corr.columns[j]
+            to_drop.add(col_i if mi_scores[col_i] < mi_scores[col_j] else col_j)
+
+# Also drop features with near zero MI score (useless features)
+low_mi = mi_scores[mi_scores < 0.01].index.tolist()
+to_drop.update(low_mi)
+
+X = X.drop(columns=to_drop)
+print("Dropped:", to_drop)
+
+mi_scores = pd.Series(mutual_info_classif(X, y, random_state=42), index=X.columns).sort_values(ascending=False)
+print(mi_scores)
+
+mi_scores.plot(kind='bar', color='steelblue')
+plt.title('Feature Importance — Mutual Information')
+plt.tight_layout()
+plt.savefig('plot6_mutual_info.png')
+plt.show()
+
+model = LogisticRegression(max_iter=1000, random_state=42)
+X_scaled = StandardScaler().fit_transform(X)
+
+max_features = min(8, len(X.columns) - 1)
+scores = []
+feature_subsets = []
+
+for n in range(1, max_features + 1):
+    sfs = SequentialFeatureSelector(model, n_features_to_select=n, direction='forward')
+    sfs.fit(X_scaled, y)
+    selected = X.columns[sfs.get_support()].tolist()
+    score = cross_val_score(model, X_scaled[:, sfs.get_support()], y, cv=3).mean()
+    scores.append(score)
+    feature_subsets.append(selected)
+    print(f"n={n} | score={score:.4f} | features={selected}")
+
+pd.Series(scores, index=range(1, max_features + 1)).plot(kind='line', marker='o', color='steelblue')
+plt.title('SFS — Number of Features vs Accuracy Score')
+plt.xlabel('Number of Features')
+plt.ylabel('Cross Validation Score')
+plt.xticks(range(1, max_features + 1))
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig('plot7_sfs_scores.png')
+plt.show()
+
+best_n = scores.index(max(scores)) + 1
+top_features = feature_subsets[best_n - 1]
+print(f"\nBest number of features : {best_n}")
+print(f"Final selected features : {top_features}")
+
+X = X[top_features]
