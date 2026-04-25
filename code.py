@@ -265,3 +265,68 @@ chosen_model      = models[chosen_model_name]
 
 print(f"\nChosen model for final evaluation: {chosen_model_name}")
 print(f"Accuracy difference from best: {results_df.loc[best, 'Accuracy'] - results_df.loc[chosen_model_name, 'Accuracy']:.4f}")
+
+#Testing
+
+from sklearn.metrics import ConfusionMatrixDisplay, roc_curve, auc, accuracy_score, classification_report
+from sklearn.preprocessing import label_binarize
+val_preds   = chosen_model.predict(X_val)
+test_preds  = chosen_model.predict(X_test)
+test_probs  = chosen_model.predict_proba(X_test)
+
+print(classification_report(y_test, test_preds, target_names=classes))
+
+ConfusionMatrixDisplay.from_predictions(
+    y_test, test_preds, display_labels=classes, colorbar=False)
+plt.title(f'Confusion Matrix — {chosen_model_name}')
+plt.xticks(rotation=30)
+plt.tight_layout()
+plt.savefig('plot9_confusion_matrix.png')
+plt.show()
+
+y_bin = label_binarize(y_test, classes=list(range(6)))
+for i, cls in enumerate(classes):
+    fpr, tpr, _ = roc_curve(y_bin[:, i], test_probs[:, i])
+    plt.plot(fpr, tpr, label=f'{cls} (AUC={auc(fpr,tpr):.2f})')
+plt.plot([0,1],[0,1],'k--')
+plt.title(f'ROC Curve — {chosen_model_name}')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.legend(fontsize=8)
+plt.tight_layout()
+plt.savefig('plot10_roc_curve.png')
+plt.show()
+
+val_report  = classification_report(y_val,  val_preds,  target_names=classes, output_dict=True)
+test_report = classification_report(y_test, test_preds, target_names=classes, output_dict=True)
+
+comparison_df = pd.DataFrame({
+    'Validation' : {
+        'Accuracy' : round(accuracy_score(y_val,  val_preds),  4),
+        'Precision': round(val_report['weighted avg']['precision'],  4),
+        'Recall'   : round(val_report['weighted avg']['recall'],     4),
+        'F1 Score' : round(val_report['weighted avg']['f1-score'],   4)
+    },
+    'Test' : {
+        'Accuracy' : round(accuracy_score(y_test, test_preds), 4),
+        'Precision': round(test_report['weighted avg']['precision'], 4),
+        'Recall'   : round(test_report['weighted avg']['recall'],    4),
+        'F1 Score' : round(test_report['weighted avg']['f1-score'],  4)
+    }
+})
+
+print("\nValidation vs Test Comparison")
+print(comparison_df)
+
+comparison_df.plot(kind='bar', color=['steelblue', 'tomato'])
+plt.title(f'Validation vs Test — {chosen_model_name}')
+plt.ylabel('Score')
+plt.ylim(0, 1)
+plt.xticks(rotation=0)
+plt.legend(loc='lower right')
+plt.tight_layout()
+plt.savefig('plot11_val_vs_test.png')
+plt.show()
+
+print(f"\nTest Accuracy : {accuracy_score(y_test, test_preds):.4f}")
+print(f"Test Accuracy : {accuracy_score(y_test, test_preds)*100:.2f}%")
